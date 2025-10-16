@@ -4,6 +4,6 @@
 ## Scrum Master
 \<Team Member Name\>
 ## Developers
-- \<Team Member Name\>
+- Kort Triemstra
 - \<Team Member Name\>
 - \<Team Member Name\>
