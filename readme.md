@@ -2,7 +2,7 @@
 ## Product Owner
 \<Team Member Name\>
 ## Scrum Master
-\<Team Member Name\>
+- Heather Lassiter
 ## Developers
 - Kort Triemstra
 - \<Team Member Name\>
