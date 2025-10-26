@@ -1,68 +1,70 @@
-import React from 'react';
-import {
-  Typography
-} from '@mui/material';
+// components/userPhotos/userPhotos.jsx
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Typography } from '@mui/material';
+import FetchModel from '../../lib/fetchModelData';
 import './userPhotos.css';
 
 /**
- * Define UserPhotos, a React component of project #5
+ * Refactor to use FetchModel instead of window.models.userModel()
  */
-class UserPhotos extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      user: null,
+export default function UserPhotos() {
+  const { userId } = useParams();
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    setUser(null);
+    setError(null);
+
+    // Fetch user’s photo data
+    FetchModel(`/photosOfUser/${userId}`)
+      .then(({ data }) => {
+        if (!alive) return;
+        if (Array.isArray(data) && data.length > 0 && data[0].user) {
+          setUser(data[0].user);
+        } else {
+          setUser({ first_name: 'Unknown', last_name: '' });
+        }
+      })
+      .catch((e) => {
+        console.error('UserPhotos fetch error:', e);
+        if (!alive) {
+          return;
+        }
+        setError(`${e.status || ''} ${e.statusText || 'Request failed'}`);
+        setUser(false);
+      });
+
+    return () => {
+      alive = false;
     };
+  }, [userId]);
+
+  if (user === null && !error) {
+    return <Typography variant="body1">Loading photos…</Typography>;
   }
 
-  componentDidMount() {
-    this.loadUser();
-  }
-
-  componentDidUpdate(prevProps) {
-    if (prevProps.match.params.userId !== this.props.match.params.userId) {
-      this.loadUser();
-    }
-  }
-
-  loadUser() {
-    const { match } = this.props;
-    if (window.models && typeof window.models.userModel === 'function') {
-      const userModel = window.models.userModel(match.params.userId);
-      this.setState({ user: userModel });
-    } else {
-      this.setState({ user: null });
-    }
-  }
-
-  render() {
-    const { user } = this.state;
-
-    if (!user) {
-      return (
-        <Typography variant="body1">
-          User not found.
-        </Typography>
-      );
-    }
-
-    const {
-      first_name: firstName,
-      last_name: lastName,
-    } = user;
-
+  if (error || user === false) {
     return (
-      <div className="user-photos">
-        <Typography variant="h4" className="user-photos__title">
-          Photos of {firstName} {lastName}
-        </Typography>
-        <Typography variant="body1">
-          {/* Photo rendering will be implemented later; placeholder keeps layout consistent. */}
-          Photo gallery coming soon.
-        </Typography>
-      </div>
+      <Typography variant="body1" sx={{ color: 'error.main' }}>
+        Error loading photos: {error || 'Unknown error'}
+      </Typography>
     );
   }
-}
 
-export default UserPhotos;
+  const { first_name: firstName, last_name: lastName } = user;
+
+  return (
+    <div className="user-photos">
+      <Typography variant="h4" className="user-photos__title">
+        Photos of {firstName} {lastName}
+      </Typography>
+      <Typography variant="body1">
+        {}
+        Photo gallery coming soon.
+      </Typography>
+    </div>
+  );
+}
