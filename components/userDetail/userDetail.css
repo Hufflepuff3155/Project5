@@ -1,0 +1,45 @@
+/* Layout container for the user detail view */
+.user-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+}
+
+.user-detail__name {
+  font-weight: 600;
+}
+
+.user-detail__info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-detail__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.user-detail__row--description {
+  align-items: flex-start;
+}
+
+.user-detail__label {
+  min-width: 110px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.user-detail__value {
+  color: #424242;
+}
+
+.user-detail__photos-button {
+  align-self: flex-start;
+}
+
+.user-detail__empty {
+  padding: 24px;
+}
