@@ -1,0 +1,11 @@
+.user-list {
+  padding: 0;
+}
+
+.user-list-item {
+  cursor: pointer;
+}
+
+.user-list-item:hover {
+  background-color: #f5f5f5;
+}
