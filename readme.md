@@ -1,10 +1,10 @@
 # Photo App Scrum Team
 ## Product Owner
-- \<Team Member Name\>
+- Heather Lassiter
 ## Scrum Master
 - Heather Lassiter
 ## Developers
 - Kort Triemstra
 - Branson Flynn
-- \<Team Member Name\>
-- \<Team Member Name\>
+- Jovan Gelevski
+- Luis Ruano Gomez

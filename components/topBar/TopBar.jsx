@@ -13,37 +13,19 @@ class TopBar extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      contextTitle: 'User List',
       appInfo: null,
     };
   }
 
   componentDidMount() {
-    this.updateContextTitle(this.props.location.pathname);
-    this.loadAppInfo();
+    this.onAppInfoUpdate();
   }
 
-  componentDidUpdate(prevProps) {
-    const { pathname } = this.props.location;
-    if (prevProps.location.pathname !== pathname) {
-      this.updateContextTitle(pathname);
+  onAppInfoUpdate() {
+    if (!this.state.appInfo) {
+      fetchModel('/test/info')
+        .then((response) => { this.setState({ appInfo: response.data }); });
     }
-  }
-
-  loadAppInfo() {
-    if (this.state.appInfo) {
-      return;
-    }
-
-    fetchModel('/test/info')
-      .then((response) => {
-        if (response && response.data) {
-          this.setState({ appInfo: response.data });
-        }
-      })
-      .catch(() => {
-        // Silently ignore failures; TopBar remains functional without version info.
-      });
   }
 
   updateContextTitle(pathname) {
@@ -66,25 +48,31 @@ class TopBar extends React.Component {
   }
 
   render() {
-    const { contextTitle, appInfo } = this.state;
+    if (this.state.appInfo === undefined) {
+      return (<div />);
+    } else {
+      const { contextTitle, appInfo } = this.state;
 
-    return (
-      <AppBar className="topbar-appBar" position="absolute">
-        <Toolbar className="topbar-toolbar">
-          <Typography variant="h6" color="inherit" className="topbar-name">
-            Heather Lassiter
-          </Typography>
-          {appInfo && (
-            <Typography variant="h6" color="inherit" className="topbar-version">
-              Version: {appInfo.__v}
+      return (
+        <AppBar className="topbar-appBar" position="absolute">
+          <Toolbar className="topbar-toolbar">
+            <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-name">Heather Lassiter{' '}</Typography>
+
+            {appInfo && (
+              <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-version">
+                Version: {this.state.appInfo.__v}
+              </Typography>
+            )}
+
+            <Typography variant="h6" color="inherit" className="topbar-context">
+              {contextTitle}
             </Typography>
-          )}
-          <Typography variant="h6" color="inherit" className="topbar-context">
-            {contextTitle}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-    );
+          </Toolbar>
+        </AppBar>
+      );
+    }
+
+
   }
 }
 
