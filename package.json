@@ -1,27 +1,15 @@
 {
-<<<<<<< HEAD
-  "name": "project5",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Project #5 - Start ReactJS PhotoApp",
-  "main": "webServer.js",
-  "scripts": {
-    "build": "webpack --devtool eval-cheap-module-source-map --output-pathinfo",
-    "build:w": "webpack --devtool eval-cheap-module-source-map --output-pathinfo --watch",
-    "lint": "eslint *.jsx components/*/*.jsx || exit 0"
-=======
   "name": "project6",
   "version": "1.0.0",
   "private": true,
   "description": "Project 6: Appserver and Database (React)",
   "main": "webServer.js",
   "scripts": {
-    "build": "webpack --devtool eval-cheap-module-source-map",
-    "build:w": "webpack --devtool eval-cheap-module-source-map --watch",
+    "build": "webpack --devtool eval-cheap-module-source-map --output-pathinfo",
+    "build:w": "webpack --devtool eval-cheap-module-source-map --output-pathinfo --watch",
     "lint": "eslint webServer.js loadDatabase.js *.jsx components/*/*.jsx || exit 0"
->>>>>>> repoB/main
   },
-  "author": "Mendel Rosenblum <mendel@cs.stanford.edu> ",
+  "author": "Mendel Rosenblum <mendel@cs.stanford.edu>",
   "contributors": [
     "Todd Dobbs <btdobbs@uncc.edu> (https://orcid.org/0000-0001-6711-6962)"
   ],
@@ -33,12 +21,6 @@
     "@mui/styles": "^5.11.7",
     "@mui/system": "^5.11.8",
     "@popperjs/core": "^2.11.5",
-<<<<<<< HEAD
-    "babel-plugin-lodash": "^3.3.4",
-    "express": "^4.18.1",
-    "file-loader": "^6.2.0",
-    "js-yaml": "^4.1.0",
-=======
     "async": "^3.1.1",
     "axios": "^1.12.2",
     "babel-plugin-lodash": "^3.3.4",
@@ -48,7 +30,6 @@
     "js-yaml": "^4.1.0",
     "mongoose": "^6.2.1",
     "nodemon": "^2.0.16",
->>>>>>> repoB/main
     "prismjs": "^1.26.0",
     "promise": "^8.1.0",
     "react": "^17.0.0",
@@ -80,11 +61,8 @@
     "y18n": "^5.0.8"
   },
   "overrides": {
-<<<<<<< HEAD
-    "core-js": "3.22.3"
-=======
     "core-js": "3.22.3",
     "semver": ">=7.5.2"
->>>>>>> repoB/main
   }
 }
+
