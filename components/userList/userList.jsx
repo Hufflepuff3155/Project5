@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Divider, List, ListItem, ListItemText, Typography } from '@mui/material';
-import FetchModel from '../../lib/fetchModelData';
+import axios from 'axios';
 import './userList.css';
 
 /**
- * UserList component — uses FetchModel('/user/list')
  */
 export default function UserList() {
   const [users, setUsers] = useState(null);
@@ -13,17 +12,18 @@ export default function UserList() {
 
   useEffect(() => {
     let isMounted = true;
-    FetchModel('/user/list')
-      .then(({ data }) => {
+    axios.get('/user/list')
+      .then((response) => {
         if (isMounted) {
-          setUsers(data);
+          setUsers(response.data);
           setError(null);
         }
       })
-      .catch((e) => {
-        console.error('UserList fetch error:', e);
+      .catch((err) => {
+        console.error('UserList fetch error:', err);
+
         if (isMounted) {
-          setError(`${e.status || ''} ${e.statusText || 'Request failed'}`);
+          setError(`${err.response.status} ${err.response.statusText || 'Request failed'}`);
           setUsers([]); // keeps UI rendering even if error
         }
       });

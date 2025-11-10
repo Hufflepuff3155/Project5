@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button, ImageList, ImageListItem, Typography } from '@mui/material';
 import { Link, useParams } from 'react-router-dom';
-import FetchModel from '../../lib/fetchModelData';
+import axios from 'axios';
 import './userPhotos.css';
 
 /**
@@ -20,9 +20,11 @@ export default function UserPhotos() {
     setUser(null);
     setError(null);
 
-    FetchModel(`/photosOfUser/${userId}`)
-      .then(({ data }) => {
+    axios.get('/photosOfUser/${userId')
+      .then((response) => {
         if (!alive) return;
+
+        const data = response.data;
         setPhotos(Array.isArray(data) ? data : []);
         if (Array.isArray(data) && data.length > 0 && data[0].user) {
           setUser(data[0].user);
@@ -30,10 +32,11 @@ export default function UserPhotos() {
           setUser({ first_name: 'Unknown', last_name: '' });
         }
       })
-      .catch((e) => {
-        console.error('UserPhotos fetch error:', e);
+      .catch((err) => {
+        console.error('UserPhotos fetch error:', err);
         if (!alive) return;
-        setError(`${e.status || ''} ${e.statusText || 'Request failed'}`);
+
+        setError(`${err.status || ''} ${err.statusText || 'Request failed'}`);
       });
 
     return () => {

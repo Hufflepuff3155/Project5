@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, Typography } from '@mui/material';
-import FetchModel from '../../lib/fetchModelData';
+import axios from 'axios';
 import './userDetail.css';
 
 /**
- * UserDetail - functional component using FetchModel
+ * UserDetail - functional component.
  */
 export default function UserDetail() {
   const { userId } = useParams();
@@ -17,18 +17,17 @@ export default function UserDetail() {
     setUser(null);
     setError(null);
 
-    FetchModel(`/user/${userId}`)
-      .then(({ data }) => {
-        if (alive) setUser(data);
+    axios.get(`/user/${userId}`)
+      .then((response) => {
+        if (alive) setUser(response.data);
       })
       .catch((e) => {
         console.error('UserDetail fetch error:', e);
         if (alive) {
-          setError(`${e.status || ''} ${e.statusText || 'Request failed'}`);
+          setError(`${e.response?.status || ''} ${e.response?.statusText || 'Request failed'}`);
           setUser(false);
         }
       });
-
     return () => {
       alive = false;
     };
