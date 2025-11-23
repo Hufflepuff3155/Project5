@@ -181,6 +181,61 @@ app.get("/photosOfUser/:id", function (request, response) {
   response.status(200).send(photos);
 });
 
+/**
+ * URL /user - Creates a new User document in MongoDB.
+ * Validates required fields and checks for unique login_name.
+ */
+app.post("/user", async function (request, response) {
+  try {
+    const {
+      login_name,
+      password,
+      first_name,
+      last_name,
+      location,
+      description,
+      occupation,
+    } = request.body;
+
+    // Validate required fields
+    if (!login_name || !password || !first_name || !last_name) {
+      return response.status(400).send("Required fields missing");
+    }
+
+    // Check if login_name already exists
+    const existingUser = await User.findOne({ login_name: login_name }).exec();
+    if (existingUser) {
+      return response.status(400).send("Login name already taken");
+    }
+
+    // Create new User object
+    const newUser = new User({
+      login_name,
+      password, 
+      first_name,
+      last_name,
+      location: location || "",
+      description: description || "",
+      occupation: occupation || "",
+    });
+
+    // Save new user in MongoDB
+    const savedUser = await newUser.save();
+
+    // Remove password before sending response
+    const cleanUser = savedUser.toObject();
+    delete cleanUser.password;
+
+    // Success: return the created user object
+    return response.status(200).send(cleanUser);
+
+  } catch (err) {
+    console.error("Error creating user:", err);
+    return response.status(500).send(JSON.stringify(err));
+  }
+});
+
+
 // Start the web server
 const server = app.listen(3000, function () {
   const port = server.address().port;
