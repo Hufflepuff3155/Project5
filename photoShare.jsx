@@ -41,6 +41,7 @@ class PhotoShare extends React.Component {
         <Grid item xs={12}>
           <TopBar main_content={this.state.main_content}
           currentUser={this.state.currentUser}
+          onLogout={() => this.setState({ currentUser: null })}
           />
         </Grid>
         <div className="main-topbar-buffer"/>

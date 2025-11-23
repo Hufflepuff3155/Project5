@@ -37,6 +37,10 @@ mongoose.Promise = require("bluebird");
 const async = require("async");
 const express = require("express");
 const app = express();
+const bodyParser = require("body-parser");
+const session = require("express-session");
+const multer = require("multer");
+const fs = require("fs");
 
 // Load the Mongoose schema for User, Photo, and SchemaInfo
 const User = require("./schema/user.js");
@@ -55,6 +59,11 @@ mongoose.connect("mongodb://127.0.0.1/project6", {
 
 // Use express static module to serve all files in the current directory
 app.use(express.static(__dirname));
+// Add body parser and session middleware
+app.use(bodyParser.json());
+app.use(
+  session({ secret: "secretKey", resave: false, saveUninitialized: false })
+);
 
 // Basic route to confirm the server is running
 app.get("/", function (request, response) {
@@ -245,4 +254,26 @@ const server = app.listen(3000, function () {
       " exporting the directory " +
       __dirname
   );
+});
+
+/**
+ * URL /admin/logout - Logs out the current user by destroying the session.
+ * Returns 200 on success, 400 if there was no logged-in user.
+ */
+app.post("/admin/logout", function (request, response) {
+  if (!request.session || !request.session.user) {
+    // Not logged in
+    response.status(400).send("Not logged in");
+    return;
+  }
+
+  // Destroy the session
+  request.session.destroy(function (err) {
+    if (err) {
+      console.error("Error destroying session:", err);
+      response.status(500).send("Error logging out");
+      return;
+    }
+    response.status(200).send("OK");
+  });
 });

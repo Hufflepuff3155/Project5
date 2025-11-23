@@ -1,7 +1,7 @@
 import React from 'react';
 import { withRouter } from 'react-router-dom';
 import {
-  AppBar, Toolbar, Typography
+  AppBar, Toolbar, Typography, Button
 } from '@mui/material';
 import './TopBar.css';
 import axios from 'axios';
@@ -57,17 +57,36 @@ class TopBar extends React.Component {
     if (this.state.appInfo === undefined) {
       return (<div />);
     } else {
-      const { contextTitle, appInfo } = this.state;
+  const { contextTitle, appInfo } = this.state;
+  const { currentUser } = this.props;
 
       return (
         <AppBar className="topbar-appBar" position="absolute">
           <Toolbar className="topbar-toolbar">
-            <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-name">Heather Lassiter{' '}</Typography>
+            <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-name">
+              {currentUser ? `Hi ${currentUser.first_name}` : 'Please Login'}
+            </Typography>
 
             {appInfo && (
               <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-version">
                 Version: {this.state.appInfo.__v}
               </Typography>
+            )}
+
+            {currentUser && (
+              <Button color="inherit" onClick={async () => {
+                try {
+                  await axios.post('/admin/logout');
+                  // If the app provided a callback prop to handle logout, call it
+                  if (this.props.onLogout) this.props.onLogout();
+                  // Redirect to login-register
+                  this.props.history.push('/login-register');
+                } catch (err) {
+                  console.error('Logout failed:', err);
+                }
+              }}>
+                Logout
+              </Button>
             )}
 
             <Typography variant="h6" color="inherit" className="topbar-context">
