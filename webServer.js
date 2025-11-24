@@ -39,8 +39,8 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 const session = require("express-session");
-const multer = require("multer");
-const fs = require("fs");
+// const multer = require("multer");
+// const fs = require("fs");
 
 // Load the Mongoose schema for User, Photo, and SchemaInfo
 const User = require("./schema/user.js");
@@ -191,6 +191,57 @@ app.get("/photosOfUser/:id", function (request, response) {
 });
 
 /**
+ * URL /commentsOfPhoto/:photo_id: add comment to photo
+ * rejects empty comments with code 400
+ */
+app.post("/commentsOfPhoto/:photo_id", async function (request, response) {
+  // requires login
+  if (!request.session || !request.session.user || !request.session.user._id) {
+    return response.status(401).send("Not logged in");
+  }
+
+  const photoId = request.params.photo_id;
+  const text = request.body && request.body.comment;
+
+  // the sprint says we can't post empty comments
+  if (!text || text.trim().length === 0) {
+    return response.status(400).send("Comment cannot be empty");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(photoId)) {
+    return response.status(400).send("Invalid photo id");
+  }
+
+  try {
+    const photo = await Photo.findById(photoId).exec();
+    if (!photo) {
+      return response.status(400).send("Photo not found");
+    }
+
+    const newComment = {
+      _id: mongoose.Types.ObjectId(),
+      comment: text,
+      user_id: request.session.user._id,
+      date_time: new Date().toISOString(),
+    };
+
+    if (!Array.isArray(photo.comments)) {
+      photo.comments = [];
+    }
+    // add
+    photo.comments.push(newComment);
+
+    await photo.save();
+
+    // return the newly added comment
+    return response.status(200).json(newComment);
+  } catch (err) {
+    console.error("Error adding comment: ", err);
+    return response.status(500).send("Internal server error");
+  }
+});
+
+/**
  * URL /user - Creates a new User document in MongoDB.
  * Validates required fields and checks for unique login_name.
  */
@@ -220,7 +271,7 @@ app.post("/user", async function (request, response) {
     // Create new User object
     const newUser = new User({
       login_name,
-      password, 
+      password,
       first_name,
       last_name,
       location: location || "",
@@ -250,9 +301,9 @@ const server = app.listen(3000, function () {
   const port = server.address().port;
   console.log(
     "Listening at http://localhost:" +
-      port +
-      " exporting the directory " +
-      __dirname
+    port +
+    " exporting the directory " +
+    __dirname
   );
 });
 
