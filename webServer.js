@@ -39,17 +39,26 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 const session = require("express-session");
-// const multer = require("multer");
-// const fs = require("fs");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 
 // Load the Mongoose schema for User, Photo, and SchemaInfo
 const User = require("./schema/user.js");
 const Photo = require("./schema/photo.js");
 const SchemaInfo = require("./schema/schemaInfo.js");
 
-// XXX - Your submission should work without this line. Comment out or delete
-// this line for tests and before submission!
-const models = require("./modelData/photoApp.js").models;
+const processFormBody = multer({ storage: multer.memoryStorage() }).single(
+  "uploadedphoto"
+);
+
+const requireLogin = function (request, response, next) {
+  if (request.session && request.session.user) {
+    next();
+    return;
+  }
+  response.status(401).send("Unauthorized");
+};
 
 mongoose.set("strictQuery", false);
 mongoose.connect("mongodb://127.0.0.1/project6", {
@@ -131,7 +140,7 @@ app.get("/test/:p1", function (request, response) {
 /**
  * URL /user/list - Returns all User objects (id, first_name, last_name).
  */
-app.get("/user/list", async function (request, response) {
+app.get("/user/list", requireLogin, async function (request, response) {
   try {
     const users = await User.find({})
       .select("_id first_name last_name")
@@ -147,7 +156,7 @@ app.get("/user/list", async function (request, response) {
  * URL /user/:id - Returns the information for a specific User by ID.
  * Replaces the previous models.userModel() mock call.
  */
-app.get("/user/:id", async function (request, response) {
+app.get("/user/:id", requireLogin, async function (request, response) {
   const id = request.params.id;
 
   // 1) Validate the ObjectId format
@@ -179,27 +188,92 @@ app.get("/user/:id", async function (request, response) {
 /**
  * URL /photosOfUser/:id - Returns the Photos for a given User (id).
  */
-app.get("/photosOfUser/:id", function (request, response) {
+app.get("/photosOfUser/:id", requireLogin, async function (request, response) {
   const id = request.params.id;
-  const photos = models.photoOfUserModel(id);
-  if (photos.length === 0) {
-    console.log("Photos for user with _id:" + id + " not found.");
-    response.status(400).send("Not found");
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    response.status(400).send({ message: "Invalid user id" });
     return;
   }
-  response.status(200).send(photos);
+
+  try {
+    const photos = await Photo.find({ user_id: id })
+      .sort({ date_time: 1 })
+      .lean();
+
+    if (!photos || photos.length === 0) {
+      response.status(200).send([]);
+      return;
+    }
+
+    const owner = await User.findById(id)
+      .select("_id first_name last_name")
+      .lean();
+
+    const commenterIds = new Set();
+    photos.forEach((photo) => {
+      (photo.comments || []).forEach((comment) => {
+        if (comment.user_id) {
+          commenterIds.add(String(comment.user_id));
+        }
+      });
+    });
+
+    const commenters = await User.find({
+      _id: { $in: Array.from(commenterIds) },
+    })
+      .select("_id first_name last_name")
+      .lean();
+
+    const commenterMap = new Map();
+    commenters.forEach((user) => {
+      commenterMap.set(String(user._id), {
+        _id: user._id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+      });
+    });
+
+    const formatted = photos.map((photo) => {
+      const formattedComments = (photo.comments || []).map((comment) => ({
+        _id: comment._id,
+        comment: comment.comment,
+        date_time: comment.date_time,
+        user_id: comment.user_id,
+        user: commenterMap.get(String(comment.user_id)) || null,
+      }));
+      const ownerInfo = owner
+        ? {
+            _id: owner._id,
+            first_name: owner.first_name,
+            last_name: owner.last_name,
+          }
+        : null;
+      return {
+        _id: photo._id,
+        file_name: photo.file_name,
+        date_time: photo.date_time,
+        user_id: photo.user_id,
+        user: ownerInfo,
+        comments: formattedComments,
+      };
+    });
+
+    response.status(200).json(formatted);
+  } catch (err) {
+    console.error("Error fetching photos:", err);
+    response.status(500).send({ message: "Internal server error" });
+  }
 });
 
 /**
  * URL /commentsOfPhoto/:photo_id: add comment to photo
  * rejects empty comments with code 400
  */
-app.post("/commentsOfPhoto/:photo_id", async function (request, response) {
-  // requires login
-  if (!request.session || !request.session.user || !request.session.user._id) {
-    return response.status(401).send("Not logged in");
-  }
-
+app.post(
+  "/commentsOfPhoto/:photo_id",
+  requireLogin,
+  async function (request, response) {
   const photoId = request.params.photo_id;
   const text = request.body && request.body.comment;
 
@@ -222,7 +296,7 @@ app.post("/commentsOfPhoto/:photo_id", async function (request, response) {
       _id: mongoose.Types.ObjectId(),
       comment: text,
       user_id: request.session.user._id,
-      date_time: new Date().toISOString(),
+      date_time: new Date(),
     };
 
     if (!Array.isArray(photo.comments)) {
@@ -233,13 +307,23 @@ app.post("/commentsOfPhoto/:photo_id", async function (request, response) {
 
     await photo.save();
 
-    // return the newly added comment
-    return response.status(200).json(newComment);
+    // return the newly added comment enriched with user info
+    const commentResponse = {
+      ...newComment,
+      user: {
+        _id: request.session.user._id,
+        first_name: request.session.user.first_name,
+        last_name: request.session.user.last_name,
+      },
+    };
+
+    return response.status(200).json(commentResponse);
   } catch (err) {
     console.error("Error adding comment: ", err);
     return response.status(500).send("Internal server error");
   }
-});
+  }
+);
 
 /**
  * URL /user - Creates a new User document in MongoDB.
@@ -292,6 +376,82 @@ app.post("/user", async function (request, response) {
   } catch (err) {
     console.error("Error creating user:", err);
     return response.status(500).send(JSON.stringify(err));
+  }
+});
+
+app.post("/photos/new", requireLogin, function (request, response) {
+  processFormBody(request, response, async function (err) {
+    if (err) {
+      console.error("Error processing upload:", err);
+      response.status(500).send("Error processing upload");
+      return;
+    }
+
+    if (!request.file) {
+      response.status(400).send("No file provided");
+      return;
+    }
+
+    const timestamp = new Date().valueOf();
+    const originalName = path.basename(request.file.originalname || "upload");
+    const filename = `U${timestamp}_${originalName}`;
+    const imagePath = path.join(__dirname, "images", filename);
+
+    fs.writeFile(imagePath, request.file.buffer, async function (writeErr) {
+      if (writeErr) {
+        console.error("Error saving image:", writeErr);
+        response.status(500).send("Unable to save image");
+        return;
+      }
+
+      try {
+        const photo = await Photo.create({
+          file_name: filename,
+          user_id: mongoose.Types.ObjectId(request.session.user._id),
+          date_time: new Date(),
+          comments: [],
+        });
+        response.status(200).send(photo);
+      } catch (dbErr) {
+        console.error("Error storing photo metadata:", dbErr);
+        response.status(500).send("Unable to save photo metadata");
+      }
+    });
+  });
+});
+
+app.post("/admin/login", async function (request, response) {
+  const { login_name: loginName, password } = request.body || {};
+
+  if (!loginName || !password) {
+    response.status(400).send("Missing credentials");
+    return;
+  }
+
+  try {
+    const user = await User.findOne({ login_name: loginName }).lean();
+
+    if (!user || user.password !== password) {
+      response.status(400).send("Invalid login name or password");
+      return;
+    }
+
+    const safeUser = {
+      _id: user._id,
+      login_name: user.login_name,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      location: user.location,
+      description: user.description,
+      occupation: user.occupation,
+    };
+
+    request.session.user = safeUser;
+
+    response.status(200).send(safeUser);
+  } catch (err) {
+    console.error("Login error:", err);
+    response.status(500).send("Internal server error");
   }
 });
 

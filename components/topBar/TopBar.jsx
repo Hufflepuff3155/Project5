@@ -14,7 +14,12 @@ class TopBar extends React.Component {
     super(props);
     this.state = {
       appInfo: null,
+      contextTitle: 'User List',
+      isUploading: false,
+      uploadError: '',
+      uploadMessage: '',
     };
+    this.fileInputRef = React.createRef();
   }
 
   componentDidMount() {
@@ -53,51 +58,107 @@ class TopBar extends React.Component {
     }
   }
 
-  render() {
-    if (this.state.appInfo === undefined) {
-      return (<div />);
-    } else {
-  const { contextTitle, appInfo } = this.state;
-  const { currentUser } = this.props;
+  handleLogout = async () => {
+    try {
+      await axios.post('/admin/logout');
+      if (this.props.onLogout) {
+        this.props.onLogout();
+      }
+      this.props.history.push('/login-register');
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
 
-      return (
-        <AppBar className="topbar-appBar" position="absolute">
-          <Toolbar className="topbar-toolbar">
-            <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-name">
-              {currentUser ? `Hi ${currentUser.first_name}` : 'Please Login'}
-            </Typography>
+  handleAddPhotoClick = () => {
+    if (this.fileInputRef.current) {
+      this.fileInputRef.current.click();
+    }
+  };
 
-            {appInfo && (
-              <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-version">
-                Version: {this.state.appInfo.__v}
-              </Typography>
-            )}
-
-            {currentUser && (
-              <Button color="inherit" onClick={async () => {
-                try {
-                  await axios.post('/admin/logout');
-                  // If the app provided a callback prop to handle logout, call it
-                  if (this.props.onLogout) this.props.onLogout();
-                  // Redirect to login-register
-                  this.props.history.push('/login-register');
-                } catch (err) {
-                  console.error('Logout failed:', err);
-                }
-              }}>
-                Logout
-              </Button>
-            )}
-
-            <Typography variant="h6" color="inherit" className="topbar-context">
-              {contextTitle}
-            </Typography>
-          </Toolbar>
-        </AppBar>
-      );
+  handleFileSelected = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+      return;
     }
 
+    const formData = new FormData();
+    formData.append('uploadedphoto', file);
 
+    this.setState({ isUploading: true, uploadError: '', uploadMessage: '' });
+
+    axios.post('/photos/new', formData)
+      .then(() => {
+        this.setState({ isUploading: false, uploadMessage: 'Photo uploaded!' });
+        if (this.props.onPhotoUploaded) {
+          this.props.onPhotoUploaded();
+        }
+      })
+      .catch((error) => {
+        const serverMessage = error.response?.data;
+        this.setState({
+          isUploading: false,
+          uploadError: typeof serverMessage === 'string' ? serverMessage : 'Upload failed',
+        });
+      })
+      .finally(() => {
+        if (this.fileInputRef.current) {
+          this.fileInputRef.current.value = '';
+        }
+      });
+  };
+
+  render() {
+    const { appInfo, contextTitle, isUploading, uploadError, uploadMessage } = this.state;
+    const { currentUser } = this.props;
+
+    return (
+      <AppBar className="topbar-appBar" position="absolute">
+        <Toolbar className="topbar-toolbar">
+          <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-name">
+            {currentUser ? `Hi ${currentUser.first_name}` : 'Please Login'}
+          </Typography>
+
+          {appInfo && (
+            <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-version">
+              Version: {appInfo.__v}
+            </Typography>
+          )}
+
+          <Typography variant="h6" color="inherit" className="topbar-context">
+            {contextTitle}
+          </Typography>
+
+          {currentUser && (
+            <>
+              <input
+                type="file"
+                accept="image/*"
+                ref={this.fileInputRef}
+                style={{ display: 'none' }}
+                onChange={this.handleFileSelected}
+              />
+              <Button color="inherit" onClick={this.handleAddPhotoClick} disabled={isUploading}>
+                {isUploading ? 'Uploading…' : 'Add Photo'}
+              </Button>
+              <Button color="inherit" onClick={this.handleLogout}>
+                Logout
+              </Button>
+            </>
+          )}
+        </Toolbar>
+        {(uploadError || uploadMessage) && currentUser && (
+          <Typography
+            variant="caption"
+            color={uploadError ? 'error' : 'inherit'}
+            className="topbar-upload-status"
+            sx={{ padding: '0 16px 8px' }}
+          >
+            {uploadError || uploadMessage}
+          </Typography>
+        )}
+      </AppBar>
+    );
   }
 }
 
