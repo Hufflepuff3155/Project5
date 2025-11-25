@@ -43,10 +43,6 @@ const User = require("./schema/user.js");
 const Photo = require("./schema/photo.js");
 const SchemaInfo = require("./schema/schemaInfo.js");
 
-// XXX - Your submission should work without this line. Comment out or delete
-// this line for tests and before submission!
-const models = require("./modelData/photoApp.js").models;
-
 mongoose.set("strictQuery", false);
 mongoose.connect("mongodb://127.0.0.1/project6", {
   useNewUrlParser: true,
@@ -170,15 +166,76 @@ app.get("/user/:id", async function (request, response) {
 /**
  * URL /photosOfUser/:id - Returns the Photos for a given User (id).
  */
-app.get("/photosOfUser/:id", function (request, response) {
-  const id = request.params.id;
-  const photos = models.photoOfUserModel(id);
-  if (photos.length === 0) {
-    console.log("Photos for user with _id:" + id + " not found.");
-    response.status(400).send("Not found");
+app.get("/photosOfUser/:id", async function (request, response) {
+  const userId = request.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    response.status(400).send({ message: "Invalid user id format" });
     return;
   }
-  response.status(200).send(photos);
+
+  try {
+    const existingUser = await User.findById(userId).select("_id").lean();
+    if (!existingUser) {
+      response.status(400).send({ message: "User not found" });
+      return;
+    }
+
+    const photos = await Photo.find({ user_id: userId })
+      .select("_id user_id file_name date_time comments")
+      .lean();
+
+    if (photos.length === 0) {
+      response.status(200).json([]);
+      return;
+    }
+
+    const commenterIds = new Set();
+    photos.forEach((photo) => {
+      (photo.comments || []).forEach((comment) => {
+        if (comment.user_id) {
+          commenterIds.add(comment.user_id.toString());
+        }
+      });
+    });
+
+    let commentersById = {};
+    if (commenterIds.size > 0) {
+      const commenters = await User.find({ _id: { $in: Array.from(commenterIds) } })
+        .select("_id first_name last_name")
+        .lean();
+
+      commentersById = commenters.reduce((acc, commenter) => {
+        acc[commenter._id.toString()] = commenter;
+        return acc;
+      }, {});
+    }
+
+    const formattedPhotos = photos.map((photo) => {
+      const formattedComments = (photo.comments || []).map((comment) => {
+        const commenter = commentersById[comment.user_id?.toString()];
+        return {
+          _id: comment._id,
+          comment: comment.comment,
+          date_time: comment.date_time,
+          user: commenter || null,
+        };
+      });
+
+      return {
+        _id: photo._id,
+        user_id: photo.user_id,
+        file_name: photo.file_name,
+        date_time: photo.date_time,
+        comments: formattedComments,
+      };
+    });
+
+    response.status(200).json(formattedPhotos);
+  } catch (error) {
+    console.error("Error fetching photos for user:", error);
+    response.status(500).send({ message: "Internal server error" });
+  }
 });
 
 // Start the web server
