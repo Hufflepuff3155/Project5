@@ -35,3 +35,8 @@
 .topbar-upload-msg {
   padding: 4px 16px 8px 16px;
 }
+
+.topbar-upload-status {
+  display: block;
+  text-align: right;
+}

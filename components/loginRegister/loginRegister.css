@@ -20,3 +20,31 @@
 .login-register__message {
   margin-top: 8px;
 }
+
+.login-register__container {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px;
+  flex-wrap: wrap;
+}
+
+.login-register__panel {
+  flex: 1 1 320px;
+  padding: 24px;
+  max-width: 420px;
+}
+
+.login-register__form {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-register__alert {
+  margin: 12px 0;
+}
+
+.login-register__divider {
+  align-self: stretch;
+}

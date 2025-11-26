@@ -37,11 +37,28 @@ mongoose.Promise = require("bluebird");
 const async = require("async");
 const express = require("express");
 const app = express();
+const bodyParser = require("body-parser");
+const session = require("express-session");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 
 // Load the Mongoose schema for User, Photo, and SchemaInfo
 const User = require("./schema/user.js");
 const Photo = require("./schema/photo.js");
 const SchemaInfo = require("./schema/schemaInfo.js");
+
+const processFormBody = multer({ storage: multer.memoryStorage() }).single(
+  "uploadedphoto"
+);
+
+const requireLogin = function (request, response, next) {
+  if (request.session && request.session.user) {
+    next();
+    return;
+  }
+  response.status(401).send("Unauthorized");
+};
 
 mongoose.set("strictQuery", false);
 mongoose.connect("mongodb://127.0.0.1/project6", {
@@ -51,6 +68,11 @@ mongoose.connect("mongodb://127.0.0.1/project6", {
 
 // Use express static module to serve all files in the current directory
 app.use(express.static(__dirname));
+// Add body parser and session middleware
+app.use(bodyParser.json());
+app.use(
+  session({ secret: "secretKey", resave: false, saveUninitialized: false })
+);
 
 // Basic route to confirm the server is running
 app.get("/", function (request, response) {
@@ -118,7 +140,7 @@ app.get("/test/:p1", function (request, response) {
 /**
  * URL /user/list - Returns all User objects (id, first_name, last_name).
  */
-app.get("/user/list", async function (request, response) {
+app.get("/user/list", requireLogin, async function (request, response) {
   try {
     const users = await User.find({})
       .select("_id first_name last_name")
@@ -134,7 +156,7 @@ app.get("/user/list", async function (request, response) {
  * URL /user/:id - Returns the information for a specific User by ID.
  * Replaces the previous models.userModel() mock call.
  */
-app.get("/user/:id", async function (request, response) {
+app.get("/user/:id", requireLogin, async function (request, response) {
   const id = request.params.id;
 
   // 1) Validate the ObjectId format
@@ -166,85 +188,301 @@ app.get("/user/:id", async function (request, response) {
 /**
  * URL /photosOfUser/:id - Returns the Photos for a given User (id).
  */
-app.get("/photosOfUser/:id", async function (request, response) {
-  const userId = request.params.id;
+app.get("/photosOfUser/:id", requireLogin, async function (request, response) {
+  const id = request.params.id;
 
-  if (!mongoose.Types.ObjectId.isValid(userId)) {
-    response.status(400).send({ message: "Invalid user id format" });
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    response.status(400).send({ message: "Invalid user id" });
     return;
   }
 
   try {
-    const existingUser = await User.findById(userId).select("_id").lean();
-    if (!existingUser) {
-      response.status(400).send({ message: "User not found" });
-      return;
-    }
-
-    const photos = await Photo.find({ user_id: userId })
-      .select("_id user_id file_name date_time comments")
+    const photos = await Photo.find({ user_id: id })
+      .sort({ date_time: 1 })
       .lean();
 
-    if (photos.length === 0) {
-      response.status(200).json([]);
+    if (!photos || photos.length === 0) {
+      response.status(200).send([]);
       return;
     }
+
+    const owner = await User.findById(id)
+      .select("_id first_name last_name")
+      .lean();
 
     const commenterIds = new Set();
     photos.forEach((photo) => {
       (photo.comments || []).forEach((comment) => {
         if (comment.user_id) {
-          commenterIds.add(comment.user_id.toString());
+          commenterIds.add(String(comment.user_id));
         }
       });
     });
 
-    let commentersById = {};
-    if (commenterIds.size > 0) {
-      const commenters = await User.find({ _id: { $in: Array.from(commenterIds) } })
-        .select("_id first_name last_name")
-        .lean();
+    const commenters = await User.find({
+      _id: { $in: Array.from(commenterIds) },
+    })
+      .select("_id first_name last_name")
+      .lean();
 
-      commentersById = commenters.reduce((acc, commenter) => {
-        acc[commenter._id.toString()] = commenter;
-        return acc;
-      }, {});
-    }
-
-    const formattedPhotos = photos.map((photo) => {
-      const formattedComments = (photo.comments || []).map((comment) => {
-        const commenter = commentersById[comment.user_id?.toString()];
-        return {
-          _id: comment._id,
-          comment: comment.comment,
-          date_time: comment.date_time,
-          user: commenter || null,
-        };
+    const commenterMap = new Map();
+    commenters.forEach((user) => {
+      commenterMap.set(String(user._id), {
+        _id: user._id,
+        first_name: user.first_name,
+        last_name: user.last_name,
       });
+    });
 
+    const formatted = photos.map((photo) => {
+      const formattedComments = (photo.comments || []).map((comment) => ({
+        _id: comment._id,
+        comment: comment.comment,
+        date_time: comment.date_time,
+        user_id: comment.user_id,
+        user: commenterMap.get(String(comment.user_id)) || null,
+      }));
+      const ownerInfo = owner
+        ? {
+            _id: owner._id,
+            first_name: owner.first_name,
+            last_name: owner.last_name,
+          }
+        : null;
       return {
         _id: photo._id,
-        user_id: photo.user_id,
         file_name: photo.file_name,
         date_time: photo.date_time,
+        user_id: photo.user_id,
+        user: ownerInfo,
         comments: formattedComments,
       };
     });
 
-    response.status(200).json(formattedPhotos);
-  } catch (error) {
-    console.error("Error fetching photos for user:", error);
+    response.status(200).json(formatted);
+  } catch (err) {
+    console.error("Error fetching photos:", err);
     response.status(500).send({ message: "Internal server error" });
   }
 });
+
+/**
+ * URL /commentsOfPhoto/:photo_id: add comment to photo
+ * rejects empty comments with code 400
+ */
+app.post(
+  "/commentsOfPhoto/:photo_id",
+  requireLogin,
+  async function (request, response) {
+  const photoId = request.params.photo_id;
+  const text = request.body && request.body.comment;
+
+  // the sprint says we can't post empty comments
+  if (!text || text.trim().length === 0) {
+    return response.status(400).send("Comment cannot be empty");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(photoId)) {
+    return response.status(400).send("Invalid photo id");
+  }
+
+  try {
+    const photo = await Photo.findById(photoId).exec();
+    if (!photo) {
+      return response.status(400).send("Photo not found");
+    }
+
+    const newComment = {
+      _id: mongoose.Types.ObjectId(),
+      comment: text,
+      user_id: request.session.user._id,
+      date_time: new Date(),
+    };
+
+    if (!Array.isArray(photo.comments)) {
+      photo.comments = [];
+    }
+    // add
+    photo.comments.push(newComment);
+
+    await photo.save();
+
+    // return the newly added comment enriched with user info
+    const commentResponse = {
+      ...newComment,
+      user: {
+        _id: request.session.user._id,
+        first_name: request.session.user.first_name,
+        last_name: request.session.user.last_name,
+      },
+    };
+
+    return response.status(200).json(commentResponse);
+  } catch (err) {
+    console.error("Error adding comment: ", err);
+    return response.status(500).send("Internal server error");
+  }
+  }
+);
+
+/**
+ * URL /user - Creates a new User document in MongoDB.
+ * Validates required fields and checks for unique login_name.
+ */
+app.post("/user", async function (request, response) {
+  try {
+    const {
+      login_name,
+      password,
+      first_name,
+      last_name,
+      location,
+      description,
+      occupation,
+    } = request.body;
+
+    // Validate required fields
+    if (!login_name || !password || !first_name || !last_name) {
+      return response.status(400).send("Required fields missing");
+    }
+
+    // Check if login_name already exists
+    const existingUser = await User.findOne({ login_name: login_name }).exec();
+    if (existingUser) {
+      return response.status(400).send("Login name already taken");
+    }
+
+    // Create new User object
+    const newUser = new User({
+      login_name,
+      password,
+      first_name,
+      last_name,
+      location: location || "",
+      description: description || "",
+      occupation: occupation || "",
+    });
+
+    // Save new user in MongoDB
+    const savedUser = await newUser.save();
+
+    // Remove password before sending response
+    const cleanUser = savedUser.toObject();
+    delete cleanUser.password;
+
+    // Success: return the created user object
+    return response.status(200).send(cleanUser);
+
+  } catch (err) {
+    console.error("Error creating user:", err);
+    return response.status(500).send(JSON.stringify(err));
+  }
+});
+
+app.post("/photos/new", requireLogin, function (request, response) {
+  processFormBody(request, response, async function (err) {
+    if (err) {
+      console.error("Error processing upload:", err);
+      response.status(500).send("Error processing upload");
+      return;
+    }
+
+    if (!request.file) {
+      response.status(400).send("No file provided");
+      return;
+    }
+
+    const timestamp = new Date().valueOf();
+    const originalName = path.basename(request.file.originalname || "upload");
+    const filename = `U${timestamp}_${originalName}`;
+    const imagePath = path.join(__dirname, "images", filename);
+
+    fs.writeFile(imagePath, request.file.buffer, async function (writeErr) {
+      if (writeErr) {
+        console.error("Error saving image:", writeErr);
+        response.status(500).send("Unable to save image");
+        return;
+      }
+
+      try {
+        const photo = await Photo.create({
+          file_name: filename,
+          user_id: mongoose.Types.ObjectId(request.session.user._id),
+          date_time: new Date(),
+          comments: [],
+        });
+        response.status(200).send(photo);
+      } catch (dbErr) {
+        console.error("Error storing photo metadata:", dbErr);
+        response.status(500).send("Unable to save photo metadata");
+      }
+    });
+  });
+});
+
+app.post("/admin/login", async function (request, response) {
+  const { login_name: loginName, password } = request.body || {};
+
+  if (!loginName || !password) {
+    response.status(400).send("Missing credentials");
+    return;
+  }
+
+  try {
+    const user = await User.findOne({ login_name: loginName }).lean();
+
+    if (!user || user.password !== password) {
+      response.status(400).send("Invalid login name or password");
+      return;
+    }
+
+    const safeUser = {
+      _id: user._id,
+      login_name: user.login_name,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      location: user.location,
+      description: user.description,
+      occupation: user.occupation,
+    };
+
+    request.session.user = safeUser;
+
+    response.status(200).send(safeUser);
+  } catch (err) {
+    console.error("Login error:", err);
+    response.status(500).send("Internal server error");
+  }
+});
+
+/**
+ * URL /admin/logout - Logs out the current user by destroying the session.
+ * Returns 200 on success, 400 if there was no logged-in user.
+ */
+app.post("/admin/logout", function (request, response) {
+  if (!request.session || !request.session.user) {
+    response.status(400).send("Not logged in");
+    return;
+  }
+
+  request.session.destroy(function (err) {
+    if (err) {
+      console.error("Error destroying session:", err);
+      response.status(500).send("Error logging out");
+      return;
+    }
+    response.status(200).send("OK");
+  });
+});
+
 
 // Start the web server
 const server = app.listen(3000, function () {
   const port = server.address().port;
   console.log(
     "Listening at http://localhost:" +
-      port +
-      " exporting the directory " +
-      __dirname
+    port +
+    " exporting the directory " +
+    __dirname
   );
 });
