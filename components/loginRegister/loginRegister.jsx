@@ -1,143 +1,262 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+import { useHistory } from 'react-router-dom';
 import {
-  Button, Divider, TextField, Typography
+  Alert,
+  Button,
+  Divider,
+  Paper,
+  TextField,
+  Typography,
 } from '@mui/material';
 import axios from 'axios';
 import './loginRegister.css';
 
-export default function LoginRegister({ onLogin, changeMainContent }) {
-  const [loginName, setLoginName] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [registerData, setRegisterData] = useState({
+/**
+ * LoginRegister view handles both login and new-user registration.
+ */
+function LoginRegister({ onLoginSuccess }) {
+  const history = useHistory();
+  const [loginForm, setLoginForm] = useState({ login_name: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  const [registerForm, setRegisterForm] = useState({
     login_name: '',
     password: '',
-    repeat_password: '',
+    confirmPassword: '',
     first_name: '',
     last_name: '',
     location: '',
     description: '',
-    occupation: ''
+    occupation: '',
   });
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('info');
+  const [registerMessage, setRegisterMessage] = useState('');
+  const [registerError, setRegisterError] = useState(false);
 
-  useEffect(() => {
-    if (changeMainContent) {
-      changeMainContent('Please Login');
+  const handleLoginChange = (event) => {
+    const { name, value } = event.target;
+    setLoginForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleRegisterChange = (event) => {
+    const { name, value } = event.target;
+    setRegisterForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const submitLogin = async (event) => {
+    event.preventDefault();
+    setLoginError('');
+    try {
+      const response = await axios.post('/admin/login', loginForm);
+      if (onLoginSuccess) {
+        onLoginSuccess(response.data);
+      }
+      history.push(`/users/${response.data._id}`);
+    } catch (err) {
+      const serverMessage = err.response?.data;
+      setLoginError(
+        typeof serverMessage === 'string'
+          ? serverMessage
+          : 'Unable to login. Please check your credentials.'
+      );
     }
-  }, [changeMainContent]);
-
-  const handleLogin = (event) => {
-    event.preventDefault();
-    setMessage('');
-    axios.post('/admin/login', { login_name: loginName, password: loginPassword })
-      .then((response) => {
-        setMessageType('success');
-        setMessage('Login successful!');
-        if (onLogin) {
-          onLogin(response.data);
-        }
-      })
-      .catch((error) => {
-        const msg = error.response?.data || 'Login failed';
-        setMessageType('error');
-        setMessage(msg);
-      });
   };
 
-  const handleRegisterChange = (field) => (event) => {
-    setRegisterData((prev) => ({ ...prev, [field]: event.target.value }));
+  const resetRegisterMessage = () => {
+    setRegisterMessage('');
+    setRegisterError(false);
   };
 
-  const handleRegister = (event) => {
+  const submitRegistration = async (event) => {
     event.preventDefault();
-    setMessage('');
-    if (registerData.password !== registerData.repeat_password) {
-      setMessageType('error');
-      setMessage('Passwords must match.');
+    resetRegisterMessage();
+
+    if (!registerForm.login_name || !registerForm.password || !registerForm.first_name || !registerForm.last_name) {
+      setRegisterError(true);
+      setRegisterMessage('Please fill in login name, password, first name, and last name.');
       return;
     }
 
-    axios.post('/user', {
-      login_name: registerData.login_name,
-      password: registerData.password,
-      first_name: registerData.first_name,
-      last_name: registerData.last_name,
-      location: registerData.location,
-      description: registerData.description,
-      occupation: registerData.occupation
-    })
-      .then(() => {
-        setMessageType('success');
-        setMessage('Registration successful! You can now log in.');
-        setRegisterData({
-          login_name: '',
-          password: '',
-          repeat_password: '',
-          first_name: '',
-          last_name: '',
-          location: '',
-          description: '',
-          occupation: ''
-        });
-      })
-      .catch((error) => {
-        const msg = error.response?.data || 'Registration failed';
-        setMessageType('error');
-        setMessage(msg);
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setRegisterError(true);
+      setRegisterMessage("Passwords don't match.");
+      return;
+    }
+
+    try {
+      await axios.post('/user', {
+        login_name: registerForm.login_name,
+        password: registerForm.password,
+        first_name: registerForm.first_name,
+        last_name: registerForm.last_name,
+        location: registerForm.location,
+        description: registerForm.description,
+        occupation: registerForm.occupation,
       });
+
+      setRegisterError(false);
+      setRegisterMessage('Registration successful! You can login now.');
+      setRegisterForm({
+        login_name: '',
+        password: '',
+        confirmPassword: '',
+        first_name: '',
+        last_name: '',
+        location: '',
+        description: '',
+        occupation: '',
+      });
+    } catch (err) {
+      const text = err.response?.data;
+      setRegisterError(true);
+      setRegisterMessage(
+        typeof text === 'string'
+          ? text
+          : 'Unable to register. Please try again.'
+      );
+    }
   };
 
   return (
-    <div className="login-register">
-      <div className="login-register__card">
-        <Typography variant="h5" gutterBottom>Login</Typography>
-        <form onSubmit={handleLogin}>
+    <div className="login-register__container">
+      <Paper elevation={3} className="login-register__panel">
+        <Typography variant="h5" gutterBottom>
+          Login
+        </Typography>
+        <form onSubmit={submitLogin} className="login-register__form">
           <TextField
             label="Login Name"
+            name="login_name"
+            value={loginForm.login_name}
+            onChange={handleLoginChange}
+            required
             fullWidth
-            margin="dense"
-            value={loginName}
-            onChange={(e) => setLoginName(e.target.value)}
+            margin="normal"
           />
           <TextField
             label="Password"
+            name="password"
             type="password"
+            value={loginForm.password}
+            onChange={handleLoginChange}
+            required
             fullWidth
-            margin="dense"
-            value={loginPassword}
-            onChange={(e) => setLoginPassword(e.target.value)}
+            margin="normal"
           />
-          <div className="login-register__actions">
-            <Button type="submit" variant="contained" color="primary">Login</Button>
-          </div>
+          {loginError && (
+            <Alert severity="error" className="login-register__alert">
+              {loginError}
+            </Alert>
+          )}
+          <Button variant="contained" color="primary" type="submit" fullWidth>
+            Login
+          </Button>
         </form>
-      </div>
+      </Paper>
 
-      <Divider />
+      <Divider orientation="vertical" flexItem className="login-register__divider" />
 
-      <div className="login-register__card">
-        <Typography variant="h5" gutterBottom>Register</Typography>
-        <form onSubmit={handleRegister}>
-          <TextField label="Login Name" fullWidth margin="dense" value={registerData.login_name} onChange={handleRegisterChange('login_name')} />
-          <TextField label="First Name" fullWidth margin="dense" value={registerData.first_name} onChange={handleRegisterChange('first_name')} />
-          <TextField label="Last Name" fullWidth margin="dense" value={registerData.last_name} onChange={handleRegisterChange('last_name')} />
-          <TextField label="Password" type="password" fullWidth margin="dense" value={registerData.password} onChange={handleRegisterChange('password')} />
-          <TextField label="Repeat Password" type="password" fullWidth margin="dense" value={registerData.repeat_password} onChange={handleRegisterChange('repeat_password')} />
-          <TextField label="Location" fullWidth margin="dense" value={registerData.location} onChange={handleRegisterChange('location')} />
-          <TextField label="Description" fullWidth margin="dense" value={registerData.description} onChange={handleRegisterChange('description')} />
-          <TextField label="Occupation" fullWidth margin="dense" value={registerData.occupation} onChange={handleRegisterChange('occupation')} />
-          <div className="login-register__actions">
-            <Button type="submit" variant="contained" color="secondary">Register Me</Button>
-          </div>
-        </form>
-      </div>
-
-      {message && (
-        <Typography className="login-register__message" color={messageType === 'error' ? 'error' : 'primary'}>
-          {message}
+      <Paper elevation={3} className="login-register__panel">
+        <Typography variant="h5" gutterBottom>
+          Register
         </Typography>
-      )}
+        <form onSubmit={submitRegistration} className="login-register__form">
+          <TextField
+            label="Login Name"
+            name="login_name"
+            value={registerForm.login_name}
+            onChange={handleRegisterChange}
+            required
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Password"
+            name="password"
+            type="password"
+            value={registerForm.password}
+            onChange={handleRegisterChange}
+            required
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Confirm Password"
+            name="confirmPassword"
+            type="password"
+            value={registerForm.confirmPassword}
+            onChange={handleRegisterChange}
+            required
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="First Name"
+            name="first_name"
+            value={registerForm.first_name}
+            onChange={handleRegisterChange}
+            required
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Last Name"
+            name="last_name"
+            value={registerForm.last_name}
+            onChange={handleRegisterChange}
+            required
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Location"
+            name="location"
+            value={registerForm.location}
+            onChange={handleRegisterChange}
+            fullWidth
+            margin="normal"
+          />
+          <TextField
+            label="Description"
+            name="description"
+            value={registerForm.description}
+            onChange={handleRegisterChange}
+            fullWidth
+            margin="normal"
+            multiline
+            minRows={2}
+          />
+          <TextField
+            label="Occupation"
+            name="occupation"
+            value={registerForm.occupation}
+            onChange={handleRegisterChange}
+            fullWidth
+            margin="normal"
+          />
+          {registerMessage && (
+            <Alert
+              severity={registerError ? 'error' : 'success'}
+              className="login-register__alert"
+            >
+              {registerMessage}
+            </Alert>
+          )}
+          <Button variant="outlined" color="primary" type="submit" fullWidth>
+            Register Me
+          </Button>
+        </form>
+      </Paper>
     </div>
   );
 }
+
+LoginRegister.propTypes = {
+  onLoginSuccess: PropTypes.func,
+};
+
+LoginRegister.defaultProps = {
+  onLoginSuccess: () => {},
+};
+
+export default LoginRegister;

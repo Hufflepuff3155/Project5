@@ -18,7 +18,7 @@ export default function UserList({ loggedIn, changeMainContent }) {
 
   useEffect(() => {
     let isMounted = true;
-    if (!loggedIn) {
+    if (loggedIn === false) {
       setUsers([]);
       setError(null);
       return () => { isMounted = false; };
@@ -44,7 +44,7 @@ export default function UserList({ loggedIn, changeMainContent }) {
     };
   }, [loggedIn]);
 
-  if (!loggedIn) {
+  if (loggedIn === false) {
     return <Typography sx={{ p: 2 }}>Login to see users.</Typography>;
   }
 
