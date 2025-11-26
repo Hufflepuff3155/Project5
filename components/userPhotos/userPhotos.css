@@ -54,3 +54,10 @@
   color: #777;
   font-style: italic;
 }
+
+.comment-form {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

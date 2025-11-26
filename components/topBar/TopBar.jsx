@@ -1,85 +1,119 @@
 import React from 'react';
-import { withRouter } from 'react-router-dom';
 import {
-  AppBar, Toolbar, Typography
+  AppBar, Toolbar, Typography, Button
 } from '@mui/material';
-import './TopBar.css';
 import axios from 'axios';
+import './TopBar.css';
 
-/**
- * Define TopBar, a React componment of project #5
- */
 class TopBar extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
       appInfo: null,
+      uploadMessage: ''
     };
+    this.fileInputRef = React.createRef();
   }
 
   componentDidMount() {
-    this.onAppInfoUpdate();
+    axios.get('/test/info')
+      .then((response) => this.setState({ appInfo: response.data }))
+      .catch(() => {});
   }
 
-  onAppInfoUpdate() {
-    if (!this.state.appInfo) {
-      axios.get('/test/info')
-        .then((response) => {
-          this.setState({ appInfo: response.data });
-        })
-        .catch((error) => {
-          console.error('Error fetching app info:', error);
-          // Optionally set error state
-        });
+  handleLogout = () => {
+    const { onLogout } = this.props;
+    if (onLogout) {
+      onLogout();
     }
-  }
+  };
 
-  updateContextTitle(pathname) {
-    let contextTitle = 'User List';
-    const userRouteMatch = pathname.match(/^\/(users|photos)\/([^/]+)/);
-
-    if (userRouteMatch && window.models && typeof window.models.userModel === 'function') {
-      const user = window.models.userModel(userRouteMatch[2]);
-      if (user) {
-        const fullName = `${user.first_name} ${user.last_name}`;
-        contextTitle = userRouteMatch[1] === 'photos' ? `Photos of ${fullName}` : fullName;
-      }
-    } else if (pathname === '/users' || pathname === '/' || pathname === '') {
-      contextTitle = 'User List';
+  handleAddPhotoClick = () => {
+    if (this.fileInputRef.current) {
+      this.fileInputRef.current.click();
     }
+  };
 
-    if (contextTitle !== this.state.contextTitle) {
-      this.setState({ contextTitle });
+  handlePhotoSelected = (event) => {
+    if (!event.target.files || event.target.files.length === 0) {
+      return;
     }
-  }
+    const domForm = new FormData();
+    domForm.append('uploadedphoto', event.target.files[0]);
+    axios.post('/photos/new', domForm)
+      .then(() => {
+        this.setState({ uploadMessage: 'Photo uploaded!' });
+        if (this.props.onPhotoUploaded) {
+          this.props.onPhotoUploaded();
+        }
+      })
+      .catch((err) => {
+        const msg = err.response?.data || 'Upload failed';
+        this.setState({ uploadMessage: msg });
+      })
+      .finally(() => {
+        if (this.fileInputRef.current) {
+          this.fileInputRef.current.value = null;
+        }
+      });
+  };
 
   render() {
-    if (this.state.appInfo === undefined) {
-      return (<div />);
-    } else {
-      const { contextTitle, appInfo } = this.state;
+    const { main_content: mainContent, currentUser } = this.props;
+    const { appInfo, uploadMessage } = this.state;
 
-      return (
-        <AppBar className="topbar-appBar" position="absolute">
-          <Toolbar className="topbar-toolbar">
-            <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-name">Heather Lassiter{' '}</Typography>
+    return (
+      <AppBar className="topbar-appBar" position="absolute">
+        <Toolbar className="topbar-toolbar">
+          <Typography variant="h6" color="inherit" className="topbar-name">
+            PhotoShare
+          </Typography>
 
-            {appInfo && (
-              <Typography variant="h6" sx={{ flexGrow: 1 }} color="inherit" className="topbar-version">
-                Version: {this.state.appInfo.__v}
+          {appInfo && (
+            <Typography variant="body1" color="inherit" className="topbar-version">
+              v{appInfo.__v}
+            </Typography>
+          )}
+
+          <Typography variant="body1" color="inherit" className="topbar-context">
+            {mainContent || ''}
+          </Typography>
+
+          <div className="topbar-actions">
+            {currentUser ? (
+              <>
+                <Typography variant="body1" color="inherit" className="topbar-greeting">
+                  Hi {currentUser.first_name}
+                </Typography>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={this.fileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={this.handlePhotoSelected}
+                />
+                <Button color="inherit" size="small" onClick={this.handleAddPhotoClick}>
+                  Add Photo
+                </Button>
+                <Button color="inherit" size="small" onClick={this.handleLogout}>
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <Typography variant="body1" color="inherit">
+                Please Login
               </Typography>
             )}
-
-            <Typography variant="h6" color="inherit" className="topbar-context">
-              {contextTitle}
-            </Typography>
-          </Toolbar>
-        </AppBar>
-      );
-    }
-
-
+          </div>
+        </Toolbar>
+        {uploadMessage && (
+          <Typography variant="caption" color="inherit" className="topbar-upload-msg">
+            {uploadMessage}
+          </Typography>
+        )}
+      </AppBar>
+    );
   }
 }
 
-export default withRouter(TopBar);
+export default TopBar;

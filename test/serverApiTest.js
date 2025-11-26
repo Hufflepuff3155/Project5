@@ -15,6 +15,7 @@ const models = require("../modelData/photoApp.js").models;
 
 const port = 3000;
 const host = "localhost";
+let authCookie = "";
 
 // Valid properties of a user list model
 const userListProperties = ["first_name", "last_name", "_id"];
@@ -45,7 +46,49 @@ function removeMongoProperties(model) {
   return model;
 }
 
+function apiGet(path, callback) {
+  return http.get(
+    {
+      hostname: host,
+      port: port,
+      path: path,
+      headers: { Cookie: authCookie },
+    },
+    callback
+  );
+}
+
 describe("Photo App: Web API Tests", function () {
+  before(function (done) {
+    const loginBody = JSON.stringify({ login_name: "malcolm", password: "weak" });
+    const options = {
+      hostname: host,
+      port: port,
+      path: "/admin/login",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(loginBody),
+      },
+    };
+    const req = http.request(options, function (response) {
+      let body = "";
+      response.on("data", function (chunk) {
+        body += chunk;
+      });
+      response.on("end", function () {
+        assert.strictEqual(response.statusCode, 200, "Unable to login user malcolm");
+        const setCookie = response.headers["set-cookie"];
+        assert(setCookie && setCookie.length > 0, "No session cookie set");
+        authCookie = setCookie[0].split(";")[0];
+        done();
+      });
+    });
+    req.on("error", done);
+    req.write(loginBody);
+    req.end();
+  });
+
   describe("test using model data", function (done) {
     it("webServer does not use model data", function (done) {
       fs.readFile("../webServer.js", function (err, data) {
@@ -66,29 +109,22 @@ describe("Photo App: Web API Tests", function () {
     const Users = models.userListModel();
 
     it("can get the list of user", function (done) {
-      http.get(
-        {
-          hostname: host,
-          port: port,
-          path: "/user/list",
-        },
-        function (response) {
-          let responseBody = "";
-          response.on("data", function (chunk) {
-            responseBody += chunk;
-          });
+      apiGet("/user/list", function (response) {
+        let responseBody = "";
+        response.on("data", function (chunk) {
+          responseBody += chunk;
+        });
 
-          response.on("end", function () {
-            assert.strictEqual(
-              response.statusCode,
-              200,
-              "HTTP response status code not OK"
-            );
-            userList = JSON.parse(responseBody);
-            done();
-          });
-        }
-      );
+        response.on("end", function () {
+          assert.strictEqual(
+            response.statusCode,
+            200,
+            "HTTP response status code not OK"
+          );
+          userList = JSON.parse(responseBody);
+          done();
+        });
+      });
     });
 
     it("is an array", function (done) {
@@ -142,29 +178,22 @@ describe("Photo App: Web API Tests", function () {
     const Users = models.userListModel();
 
     it("can get the list of user", function (done) {
-      http.get(
-        {
-          hostname: host,
-          port: port,
-          path: "/user/list",
-        },
-        function (response) {
-          let responseBody = "";
-          response.on("data", function (chunk) {
-            responseBody += chunk;
-          });
+      apiGet("/user/list", function (response) {
+        let responseBody = "";
+        response.on("data", function (chunk) {
+          responseBody += chunk;
+        });
 
-          response.on("end", function () {
-            assert.strictEqual(
-              response.statusCode,
-              200,
-              "HTTP response status code not OK"
-            );
-            userList = JSON.parse(responseBody);
-            done();
-          });
-        }
-      );
+        response.on("end", function () {
+          assert.strictEqual(
+            response.statusCode,
+            200,
+            "HTTP response status code not OK"
+          );
+          userList = JSON.parse(responseBody);
+          done();
+        });
+      });
     });
 
     it("can get each of the user detail with /user/:id", function (done) {
@@ -183,64 +212,50 @@ describe("Photo App: Web API Tests", function () {
               realUser.last_name
           );
           const id = user._id;
-          http.get(
-            {
-              hostname: host,
-              port: port,
-              path: "/user/" + id,
-            },
-            function (response) {
-              let responseBody = "";
-              response.on("data", function (chunk) {
-                responseBody += chunk;
-              });
+          apiGet("/user/" + id, function (response) {
+            let responseBody = "";
+            response.on("data", function (chunk) {
+              responseBody += chunk;
+            });
 
-              response.on("end", function () {
-                const userInfo = JSON.parse(responseBody);
-                assert.strictEqual(userInfo._id, id);
-                assert.strictEqual(userInfo.first_name, realUser.first_name);
-                assert.strictEqual(userInfo.last_name, realUser.last_name);
-                assert.strictEqual(userInfo.location, realUser.location);
-                assert.strictEqual(userInfo.description, realUser.description);
-                assert.strictEqual(userInfo.occupation, realUser.occupation);
+            response.on("end", function () {
+              const userInfo = JSON.parse(responseBody);
+              assert.strictEqual(userInfo._id, id);
+              assert.strictEqual(userInfo.first_name, realUser.first_name);
+              assert.strictEqual(userInfo.last_name, realUser.last_name);
+              assert.strictEqual(userInfo.location, realUser.location);
+              assert.strictEqual(userInfo.description, realUser.description);
+              assert.strictEqual(userInfo.occupation, realUser.occupation);
 
-                const extraProps = _.difference(
-                  Object.keys(removeMongoProperties(userInfo)),
-                  userDetailProperties
-                );
-                assert.strictEqual(
-                  extraProps.length,
-                  0,
-                  "user object has extra properties: " + extraProps
-                );
-                callback();
-              });
-            }
-          );
+              const extraProps = _.difference(
+                Object.keys(removeMongoProperties(userInfo)),
+                userDetailProperties
+              );
+              assert.strictEqual(
+                extraProps.length,
+                0,
+                "user object has extra properties: " + extraProps
+              );
+              callback();
+            });
+          });
         },
         done
       );
     });
 
     it("can return a 400 status on an invalid user id", function (done) {
-      http.get(
-        {
-          hostname: host,
-          port: port,
-          path: "/user/6528caac38bad49b8eceed6a",
-        },
-        function (response) {
-          let responseBody = "";
-          response.on("data", function (chunk) {
-            responseBody += chunk;
-          });
+      apiGet("/user/6528caac38bad49b8eceed6a", function (response) {
+        let responseBody = "";
+        response.on("data", function (chunk) {
+          responseBody += chunk;
+        });
 
-          response.on("end", function () {
-            assert.strictEqual(response.statusCode, 400);
-            done();
-          });
-        }
-      );
+        response.on("end", function () {
+          assert.strictEqual(response.statusCode, 400);
+          done();
+        });
+      });
     });
   });
 
@@ -249,29 +264,22 @@ describe("Photo App: Web API Tests", function () {
     const Users = models.userListModel();
 
     it("can get the list of user", function (done) {
-      http.get(
-        {
-          hostname: host,
-          port: port,
-          path: "/user/list",
-        },
-        function (response) {
-          let responseBody = "";
-          response.on("data", function (chunk) {
-            responseBody += chunk;
-          });
+      apiGet("/user/list", function (response) {
+        let responseBody = "";
+        response.on("data", function (chunk) {
+          responseBody += chunk;
+        });
 
-          response.on("end", function () {
-            assert.strictEqual(
-              response.statusCode,
-              200,
-              "HTTP response status code not OK"
-            );
-            userList = JSON.parse(responseBody);
-            done();
-          });
-        }
-      );
+        response.on("end", function () {
+          assert.strictEqual(
+            response.statusCode,
+            200,
+            "HTTP response status code not OK"
+          );
+          userList = JSON.parse(responseBody);
+          done();
+        });
+      });
     });
 
     it("can get each of the user photos with /photosOfUser/:id", function (done) {
@@ -292,112 +300,105 @@ describe("Photo App: Web API Tests", function () {
           );
           let photos;
           const id = user._id;
-          http.get(
-            {
-              hostname: host,
-              port: port,
-              path: "/photosOfUser/" + id,
-            },
-            function (response) {
-              let responseBody = "";
-              response.on("data", function (chunk) {
-                responseBody += chunk;
-              });
-              response.on("error", function (err) {
-                callback(err);
-              });
+          apiGet("/photosOfUser/" + id, function (response) {
+            let responseBody = "";
+            response.on("data", function (chunk) {
+              responseBody += chunk;
+            });
+            response.on("error", function (err) {
+              callback(err);
+            });
 
-              response.on("end", function () {
+            response.on("end", function () {
+              assert.strictEqual(
+                response.statusCode,
+                200,
+                "HTTP response status code not OK"
+              );
+              photos = JSON.parse(responseBody);
+
+              const real_photos = models.photoOfUserModel(realUser._id);
+
+              assert.strictEqual(
+                real_photos.length,
+                photos.length,
+                "wrong number of photos returned"
+              );
+              _.forEach(real_photos, function (real_photo) {
+                const matches = _.filter(photos, {
+                  file_name: real_photo.file_name,
+                });
                 assert.strictEqual(
-                  response.statusCode,
-                  200,
-                  "HTTP response status code not OK"
+                  matches.length,
+                  1,
+                  " looking for photo " + real_photo.file_name
                 );
-                photos = JSON.parse(responseBody);
-
-                const real_photos = models.photoOfUserModel(realUser._id);
-
+                const photo = matches[0];
+                const extraProps1 = _.difference(
+                  Object.keys(removeMongoProperties(photo)),
+                  photoProperties
+                );
                 assert.strictEqual(
-                  real_photos.length,
-                  photos.length,
-                  "wrong number of photos returned"
+                  extraProps1.length,
+                  0,
+                  "photo object has extra properties: " + extraProps1
                 );
-                _.forEach(real_photos, function (real_photo) {
-                  const matches = _.filter(photos, {
-                    file_name: real_photo.file_name,
-                  });
-                  assert.strictEqual(
-                    matches.length,
-                    1,
-                    " looking for photo " + real_photo.file_name
-                  );
-                  const photo = matches[0];
-                  const extraProps1 = _.difference(
-                    Object.keys(removeMongoProperties(photo)),
-                    photoProperties
-                  );
-                  assert.strictEqual(
-                    extraProps1.length,
-                    0,
-                    "photo object has extra properties: " + extraProps1
-                  );
-                  assert.strictEqual(photo.user_id, id);
-                  assertEqualDates(photo.date_time, real_photo.date_time);
-                  assert.strictEqual(photo.file_name, real_photo.file_name);
+                assert.strictEqual(photo.user_id, id);
+                assertEqualDates(photo.date_time, real_photo.date_time);
+                assert.strictEqual(photo.file_name, real_photo.file_name);
 
-                  if (real_photo.comments) {
+                if (real_photo.comments) {
+                  assert.strictEqual(
+                    photo.comments.length,
+                    real_photo.comments.length,
+                    "comments on photo " + real_photo.file_name
+                  );
+
+                  _.forEach(real_photo.comments, function (real_comment) {
+                    const comment = _.find(photo.comments, {
+                      comment: real_comment.comment,
+                    });
+                    assert(comment);
+                    const extraProps2 = _.difference(
+                      Object.keys(removeMongoProperties(comment)),
+                      commentProperties
+                    );
                     assert.strictEqual(
-                      photo.comments.length,
-                      real_photo.comments.length,
-                      "comments on photo " + real_photo.file_name
+                      extraProps2.length,
+                      0,
+                      "comment object has extra properties: " + extraProps2
+                    );
+                    assertEqualDates(
+                      comment.date_time,
+                      real_comment.date_time
                     );
 
-                    _.forEach(real_photo.comments, function (real_comment) {
-                      const comment = _.find(photo.comments, {
-                        comment: real_comment.comment,
-                      });
-                      assert(comment);
-                      const extraProps2 = _.difference(
-                        Object.keys(removeMongoProperties(comment)),
-                        commentProperties
-                      );
-                      assert.strictEqual(
-                        extraProps2.length,
-                        0,
-                        "comment object has extra properties: " + extraProps2
-                      );
-                      assertEqualDates(
-                        comment.date_time,
-                        real_comment.date_time
-                      );
-
-                      const extraProps3 = _.difference(
-                        Object.keys(removeMongoProperties(comment.user)),
-                        userListProperties
-                      );
-                      assert.strictEqual(
-                        extraProps3.length,
-                        0,
-                        "comment user object has extra properties: " +
-                          extraProps3
-                      );
-                      assert.strictEqual(
-                        comment.user.first_name,
-                        real_comment.user.first_name
-                      );
-                      assert.strictEqual(
-                        comment.user.last_name,
-                        real_comment.user.last_name
-                      );
-                    });
-                  } else {
-                    assert(!photo.comments || photo.comments.length === 0);
-                  }
-                });
-                callback();
+                    const extraProps3 = _.difference(
+                      Object.keys(removeMongoProperties(comment.user)),
+                      userListProperties
+                    );
+                    assert.strictEqual(
+                      extraProps3.length,
+                      0,
+                      "comment user object has extra properties: " +
+                        extraProps3
+                    );
+                    assert.strictEqual(
+                      comment.user.first_name,
+                      real_comment.user.first_name
+                    );
+                    assert.strictEqual(
+                      comment.user.last_name,
+                      real_comment.user.last_name
+                    );
+                  });
+                } else {
+                  assert(!photo.comments || photo.comments.length === 0);
+                }
               });
-            }
-          );
+              callback();
+            });
+          });
         },
         function (err) {
           done();
@@ -406,24 +407,17 @@ describe("Photo App: Web API Tests", function () {
     });
 
     it("can return a 400 status on an invalid id to photosOfUser", function (done) {
-      http.get(
-        {
-          hostname: host,
-          port: port,
-          path: "/photosOfUser/6528caac38bad49b8eceed6a",
-        },
-        function (response) {
-          let responseBody = "";
-          response.on("data", function (chunk) {
-            responseBody += chunk;
-          });
+      apiGet("/photosOfUser/6528caac38bad49b8eceed6a", function (response) {
+        let responseBody = "";
+        response.on("data", function (chunk) {
+          responseBody += chunk;
+        });
 
-          response.on("end", function () {
-            assert.strictEqual(response.statusCode, 400);
-            done();
-          });
-        }
-      );
+        response.on("end", function () {
+          assert.strictEqual(response.statusCode, 400);
+          done();
+        });
+      });
     });
   });
 });

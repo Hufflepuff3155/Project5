@@ -6,12 +6,24 @@ import './userList.css';
 
 /**
  */
-export default function UserList() {
+export default function UserList({ loggedIn, changeMainContent }) {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (loggedIn && changeMainContent) {
+      changeMainContent('User List');
+    }
+  }, [loggedIn, changeMainContent]);
+
+  useEffect(() => {
     let isMounted = true;
+    if (!loggedIn) {
+      setUsers([]);
+      setError(null);
+      return () => { isMounted = false; };
+    }
+
     axios.get('/user/list')
       .then((response) => {
         if (isMounted) {
@@ -23,14 +35,18 @@ export default function UserList() {
         console.error('UserList fetch error:', err);
 
         if (isMounted) {
-          setError(`${err.response.status} ${err.response.statusText || 'Request failed'}`);
+          setError(`${err.response?.status || ''} ${err.response?.statusText || 'Request failed'}`);
           setUsers([]); // keeps UI rendering even if error
         }
       });
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loggedIn]);
+
+  if (!loggedIn) {
+    return <Typography sx={{ p: 2 }}>Login to see users.</Typography>;
+  }
 
   if (users === null) {
     return <Typography sx={{ p: 2 }}>Loading users…</Typography>;

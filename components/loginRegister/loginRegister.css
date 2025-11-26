@@ -1,0 +1,22 @@
+.login-register {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.login-register__card {
+  padding: 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.login-register__actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.login-register__message {
+  margin-top: 8px;
+}

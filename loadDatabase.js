@@ -50,6 +50,8 @@ Promise.all(removePromises)
     const mapFakeId2RealId = {};
     const userPromises = userModels.map(function (user) {
       return User.create({
+        login_name: user.last_name.toLowerCase(),
+        password: "weak",
         first_name: user.first_name,
         last_name: user.last_name,
         location: user.location,

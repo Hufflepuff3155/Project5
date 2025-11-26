@@ -7,7 +7,7 @@ import './userDetail.css';
 /**
  * UserDetail - functional component.
  */
-export default function UserDetail() {
+export default function UserDetail({ changeMainContent }) {
   const { userId } = useParams();
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
@@ -19,7 +19,12 @@ export default function UserDetail() {
 
     axios.get(`/user/${userId}`)
       .then((response) => {
-        if (alive) setUser(response.data);
+        if (alive) {
+          setUser(response.data);
+          if (changeMainContent) {
+            changeMainContent(`${response.data.first_name} ${response.data.last_name}`);
+          }
+        }
       })
       .catch((e) => {
         console.error('UserDetail fetch error:', e);
