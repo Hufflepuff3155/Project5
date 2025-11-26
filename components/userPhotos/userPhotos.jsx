@@ -20,7 +20,7 @@ export default function UserPhotos() {
     setUser(null);
     setError(null);
 
-    axios.get('/photosOfUser/${userId')
+    axios.get(`/photosOfUser/${userId}`)
       .then((response) => {
         if (!alive) return;
 
