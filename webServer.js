@@ -186,7 +186,7 @@ app.get("/user/:id", requireLogin, async function (request, response) {
 });
 
 /**
- * URL /photosOfUser/:id - Returns the Photos for a given User (id).
+ * URL /photosOfUser/:id - Returns the Photos for a given User (id). 
  */
 app.get("/photosOfUser/:id", requireLogin, async function (request, response) {
   const id = request.params.id;
@@ -266,6 +266,37 @@ app.get("/photosOfUser/:id", requireLogin, async function (request, response) {
   }
 });
 
+
+/**
+ * URL /mostRecentPhotoOfUser/:id - Returns the most recently uploaded
+ * photo for a given User (id).
+ * (User Story 1)
+ */
+app.get("/mostRecentPhotoOfUser/:id", requireLogin, async function (request, response) {
+  const id = request.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return response.status(400).send("Invalid user id format");
+  }
+
+  try {
+    const photo = await Photo.findOne({ user_id: id })
+      .sort({ date_time: -1 })
+      .select("_id file_name date_time user_id")
+      .lean();
+
+    if (!photo) {
+      return response.status(404).send("No photos for this user");
+    }
+
+    return response.status(200).json(photo);
+  } catch (err) {
+    console.error("Error in /mostRecentPhotoOfUser:", err);
+    return response.status(500).send("Internal server error");
+  }
+});
+
+
 /**
  * URL /commentsOfPhoto/:photo_id: add comment to photo
  * rejects empty comments with code 400
@@ -324,6 +355,9 @@ app.post(
   }
   }
 );
+
+
+
 
 /**
  * URL /user - Creates a new User document in MongoDB.

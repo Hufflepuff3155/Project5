@@ -11,11 +11,14 @@ export default function UserDetail({ changeMainContent }) {
   const { userId } = useParams();
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
+  const [mostRecentPhoto, setMostRecentPhoto] = useState(null);
+
 
   useEffect(() => {
     let alive = true;
     setUser(null);
     setError(null);
+    setMostRecentPhoto(null);
 
     axios.get(`/user/${userId}`)
       .then((response) => {
@@ -33,10 +36,25 @@ export default function UserDetail({ changeMainContent }) {
           setUser(false);
         }
       });
+
+      axios.get(`/mostRecentPhotoOfUser/${userId}`)
+        .then((response) => {
+          if (alive) {
+            setMostRecentPhoto(response.data);
+          }
+        })
+        .catch((e) => {
+          console.error('Most recent photo fetch error:', e);
+          if (alive) {
+            setMostRecentPhoto(false);
+          }
+        });
+
+
     return () => {
       alive = false;
     };
-  }, [userId]);
+  }, [userId, changeMainContent]);
 
   if (user === null && !error) {
     return (
@@ -108,6 +126,37 @@ export default function UserDetail({ changeMainContent }) {
         variant="contained"
         color="primary"
       >
+        
+        {/* Most Recent Photo thumbnail (User Story 1) */}
+        {mostRecentPhoto && mostRecentPhoto !== false && (
+          <div className="user-detail__most-recent">
+            <Typography variant="subtitle2" className="user-detail__label">
+              Most Recent Photo:
+            </Typography>
+
+            <div
+              className="user-detail__most-recent-content"
+              style={{ display: "flex", flexDirection: "column", marginTop: 8 }}
+            >
+              <img
+                src={`images/${mostRecentPhoto.file_name}`}
+                alt="Most recent"
+                style={{
+                  width: 120,
+                  height: 120,
+                  objectFit: "cover",
+                  borderRadius: 4
+                }}
+              />
+
+              <Typography variant="body2" className="user-detail__value">
+                {new Date(mostRecentPhoto.date_time).toLocaleString()}
+              </Typography>
+            </div>
+          </div>
+        )}
+
+        
         View Photos
       </Button>
     </div>
