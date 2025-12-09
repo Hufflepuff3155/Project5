@@ -296,6 +296,50 @@ app.get("/mostRecentPhotoOfUser/:id", requireLogin, async function (request, res
   }
 });
 
+/**
+ * URL /mostCommentedPhotoOfUser/:id - Returns the photo belonging to the user
+ * that has the highest number of comments (with the comment count).
+ * (User Story 3)
+ */
+app.get("/mostCommentedPhotoOfUser/:id", requireLogin, async function (request, response) {
+  const id = request.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return response.status(400).send("Invalid user id format");
+  }
+
+  try {
+    const [mostCommented] = await Photo.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(id) } },
+      {
+        $addFields: {
+          commentCount: { $size: { $ifNull: ["$comments", []] } },
+        },
+      },
+      { $sort: { commentCount: -1, date_time: -1 } },
+      { $limit: 1 },
+      {
+        $project: {
+          _id: 1,
+          file_name: 1,
+          date_time: 1,
+          user_id: 1,
+          commentCount: 1,
+        },
+      },
+    ]);
+
+    if (!mostCommented) {
+      return response.status(404).send("No photos for this user");
+    }
+
+    return response.status(200).json(mostCommented);
+  } catch (err) {
+    console.error("Error in /mostCommentedPhotoOfUser:", err);
+    return response.status(500).send("Internal server error");
+  }
+});
+
 
 /**
  * URL /commentsOfPhoto/:photo_id: add comment to photo

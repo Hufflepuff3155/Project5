@@ -12,13 +12,14 @@ export default function UserDetail({ changeMainContent }) {
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
   const [mostRecentPhoto, setMostRecentPhoto] = useState(null);
-
+  const [mostCommentedPhoto, setMostCommentedPhoto] = useState(null);
 
   useEffect(() => {
     let alive = true;
     setUser(null);
     setError(null);
     setMostRecentPhoto(null);
+    setMostCommentedPhoto(null);
 
     axios.get(`/user/${userId}`)
       .then((response) => {
@@ -37,18 +38,32 @@ export default function UserDetail({ changeMainContent }) {
         }
       });
 
-      axios.get(`/mostRecentPhotoOfUser/${userId}`)
-        .then((response) => {
-          if (alive) {
-            setMostRecentPhoto(response.data);
-          }
-        })
-        .catch((e) => {
-          console.error('Most recent photo fetch error:', e);
-          if (alive) {
-            setMostRecentPhoto(false);
-          }
-        });
+    axios.get(`/mostRecentPhotoOfUser/${userId}`)
+      .then((response) => {
+        if (alive) {
+          setMostRecentPhoto(response.data);
+        }
+      })
+      .catch((e) => {
+        console.error('Most recent photo fetch error:', e);
+        if (alive) {
+          setMostRecentPhoto(false);
+        }
+      });
+
+
+    axios.get(`/mostCommentedPhotoOfUser/${userId}`)
+      .then((response) => {
+        if (alive) {
+          setMostCommentedPhoto(response.data);
+        }
+      })
+      .catch((e) => {
+        console.error('Most commented photo fetch error:', e);
+        if (alive) {
+          setMostCommentedPhoto(false);
+        }
+      });
 
 
     return () => {
@@ -156,6 +171,23 @@ export default function UserDetail({ changeMainContent }) {
           </div>
         )}
 
+        {mostCommentedPhoto && mostCommentedPhoto !== false && (
+          <div className="user-detail__most-commented">
+            <Typography variant="subtitle2" className="user-detail__label">
+              Most Commented Photo:
+            </Typography>
+            <div className="user-detail__most-commented-content">
+              <img
+                src={`images/${mostCommentedPhoto.file_name}`}
+                alt="Most commented"
+                className="user-detail__thumb"
+              />
+              <Typography variant="body2" className="user-detail__value">
+                {mostCommentedPhoto.commentCount} comment{mostCommentedPhoto.commentCount === 1 ? '' : 's'}
+              </Typography>
+            </div>
+          </div>
+        )}
         
         View Photos
       </Button>

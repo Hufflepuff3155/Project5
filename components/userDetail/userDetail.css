@@ -43,3 +43,18 @@
 .user-detail__empty {
   padding: 24px;
 }
+
+.user-detail__most-commented-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.user-detail__thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
