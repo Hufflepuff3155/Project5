@@ -6,7 +6,7 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import './userPhotos.css';
 
@@ -16,10 +16,29 @@ import './userPhotos.css';
  */
 export default function UserPhotos(props) {
   const { userId } = useParams();
+  const location = useLocation();
   const [photos, setPhotos] = useState(null);
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
   const [newCommentText, setNewCommentText] = useState('');
+  const [targetPhotoId, setTargetPhotoId] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const idFromQuery = params.get('photoId');
+    setTargetPhotoId(idFromQuery);
+  }, [location.search]);
+
+  useEffect(() => {
+    
+    if (!targetPhotoId || !photos || !Array.isArray(photos) || photos.length === 0) {
+      return;
+    }
+    const element = document.getElementById(`photo-${targetPhotoId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [targetPhotoId, photos]);
 
   useEffect(() => {
     let alive = true;
@@ -27,7 +46,8 @@ export default function UserPhotos(props) {
     setUser(null);
     setError(null);
 
-    axios.get(`/photosOfUser/${userId}`)
+    axios
+      .get(`/photosOfUser/${userId}`)
       .then((response) => {
         if (!alive) return;
 
@@ -42,7 +62,6 @@ export default function UserPhotos(props) {
       .catch((err) => {
         console.error('UserPhotos fetch error:', err);
         if (!alive) return;
-
         setError(`${err.status || ''} ${err.statusText || 'Request failed'}`);
       });
 
@@ -56,51 +75,28 @@ export default function UserPhotos(props) {
   };
 
   const submitComment = async (photoId) => {
-    const text = (newCommentText || "").trim();
+    const text = (newCommentText || '').trim();
     if (!text) {
       return;
     }
 
     try {
-      const res = await fetch(`/commentsOfPhoto/${photoId}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comment: text }),
-      });
-
-      if (res.status === 400) {
-        return;
-      }
-      if (res.status === 401) {
-        return;
-      }
-      if (!res.ok) {
-        throw new Error("Failed to add comment");
-      }
-
-      const createdComment = await res.json();
-
-      // Update local UI immediately: append createdComment to the right photo's comments
-      setPhotos((prevPhotos) => {
-        return (prevPhotos || []).map((p) => {
-          if (String(p._id) === String(photoId)) {
-            const comments = Array.isArray(p.comments) ? p.comments.slice() : [];
-            comments.push(createdComment);
-            return { ...p, comments };
-          }
-          return p;
-        });
-      });
+      const body = { comment: text };
+      await axios.post(`/commentsOfPhoto/${photoId}`, body);
       setNewCommentText('');
+
+      const response = await axios.get(`/photosOfUser/${userId}`);
+      const data = response.data;
+      setPhotos(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Error posting comment:", err);
+      console.error('submitComment error:', err);
+      setError('Unable to post comment.');
     }
   };
 
   if (error) {
     return (
-      <Typography variant="body1" sx={{ color: 'error.main' }}>
+      <Typography variant="body1" color="error">
         Error loading photos: {error}
       </Typography>
     );
@@ -127,7 +123,11 @@ export default function UserPhotos(props) {
 
       <ImageList variant="masonry" cols={1} gap={8}>
         {photos.map((photo) => (
-          <div key={photo._id} className="photo-item">
+          <div
+            key={photo._id}
+            id={`photo-${photo._id}`}
+            className="photo-item"
+          >
             <Typography variant="body2" className="photo-date">
               {photo.date_time}
             </Typography>
@@ -144,10 +144,12 @@ export default function UserPhotos(props) {
                 photo.comments.map((comment) => (
                   <div key={comment._id} className="comment">
                     <div className="comment-header">
-                      <Link className="comment-author" to={`/users/${comment.user._id}`}>
+                      <Typography variant="subtitle2">
                         {comment.user.first_name} {comment.user.last_name}
-                      </Link>
-                      <span className="comment-date">{comment.date_time}</span>
+                      </Typography>
+                      <Typography variant="caption" className="comment-date">
+                        {comment.date_time}
+                      </Typography>
                     </div>
                     <Typography variant="body2" className="comment-text">
                       {comment.comment}
@@ -155,38 +157,20 @@ export default function UserPhotos(props) {
                   </div>
                 ))
               ) : (
-                <Typography variant="body2" className="no-comments">
-                  No comments
+                <Typography variant="body2" className="comment-empty">
+                  No comments yet.
                 </Typography>
               )}
-            </div>
-            <div className="comments-section">
-              <Typography variant="h6">Comments</Typography>
 
-              {Array.isArray(photo.comments) && photo.comments.length > 0 ? (
-                photo.comments.map((c) => (
-                  <div key={c._id || c.date_time} className="comment">
-                    <Typography variant="body2">
-                      <strong>{c.user_id || (c.user && c.user.first_name) || "User"}</strong>{" "}
-                      <em>({c.date_time})</em>: {c.comment}
-                    </Typography>
-                  </div>
-                ))
-              ) : (
-                <Typography variant="body2">No comments yet.</Typography>
-              )}
-
-              {/* add comment ui*/}
-              {props.currentUser ? (
-                <div style={{ marginTop: 8 }}>
+              {props.loggedInUser ? (
+                <div className="comment-form">
                   <TextField
+                    label="Add a comment"
+                    value={newCommentText}
+                    onChange={handleNewCommentChange}
                     fullWidth
                     multiline
                     minRows={1}
-                    maxRows={4}
-                    placeholder="Write a comment..."
-                    value={newCommentText}
-                    onChange={handleNewCommentChange}
                   />
                   <Button
                     variant="contained"
@@ -198,7 +182,9 @@ export default function UserPhotos(props) {
                   </Button>
                 </div>
               ) : (
-                <Typography variant="body2">Please login to add comments.</Typography>
+                <Typography variant="body2">
+                  Please login to add comments.
+                </Typography>
               )}
             </div>
           </div>
