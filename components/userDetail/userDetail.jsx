@@ -16,93 +16,99 @@ export default function UserDetail({ changeMainContent }) {
 
   useEffect(() => {
     let alive = true;
+
     setUser(null);
     setError(null);
     setMostRecentPhoto(null);
     setMostCommentedPhoto(null);
 
-    axios.get(`/user/${userId}`)
+    axios
+      .get(`/user/${userId}`)
       .then((response) => {
-        if (alive) {
-          setUser(response.data);
-          if (changeMainContent) {
-            changeMainContent(`${response.data.first_name} ${response.data.last_name}`);
-          }
+        if (!alive) return;
+        setUser(response.data);
+        if (changeMainContent) {
+          changeMainContent(
+            `${response.data.first_name} ${response.data.last_name}`
+          );
         }
       })
       .catch((e) => {
         console.error('UserDetail fetch error:', e);
-        if (alive) {
-          setError(`${e.response?.status || ''} ${e.response?.statusText || 'Request failed'}`);
-          setUser(false);
-        }
+        if (!alive) return;
+        setError(
+          `${e.response?.status || ''} ${
+            e.response?.statusText || 'Request failed'
+          }`
+        );
+        setUser(false);
       });
 
-    axios.get(`/mostRecentPhotoOfUser/${userId}`)
+    axios.get(`/mostRecentPhoto/${userId}`)
       .then((response) => {
-        if (alive) {
-          setMostRecentPhoto(response.data);
-        }
+        if (!alive) return;
+        setMostRecentPhoto(response.data || false);
       })
       .catch((e) => {
-        console.error('Most recent photo fetch error:', e);
-        if (alive) {
-          setMostRecentPhoto(false);
-        }
+        console.error('MostRecentPhoto fetch error:', e);
+        if (!alive) return;
+        setMostRecentPhoto(false);
       });
 
-
-    axios.get(`/mostCommentedPhotoOfUser/${userId}`)
+    axios
+      .get(`/mostCommentedPhoto/${userId}`)
       .then((response) => {
-        if (alive) {
-          setMostCommentedPhoto(response.data);
-        }
+        if (!alive) return;
+        setMostCommentedPhoto(response.data || false);
       })
       .catch((e) => {
-        console.error('Most commented photo fetch error:', e);
-        if (alive) {
-          setMostCommentedPhoto(false);
-        }
+        console.error('MostCommentedPhoto fetch error:', e);
+        if (!alive) return;
+        setMostCommentedPhoto(false);
       });
-
 
     return () => {
       alive = false;
     };
   }, [userId, changeMainContent]);
 
-  if (user === null && !error) {
+  if (error) {
     return (
-      <Typography variant="body1" className="user-detail__empty">
-        Loading user…
+      <Typography variant="body1" color="error">
+        Error loading user: {error}
       </Typography>
     );
   }
 
-  if (error || user === false) {
+  if (user === null) {
+    return <Typography variant="body1">Loading user...</Typography>;
+  }
+
+  if (user === false) {
     return (
-      <Typography variant="body1" className="user-detail__empty">
-        Error loading user: {error || 'Unknown error'}
+      <Typography variant="body1" color="error">
+        User not found.
       </Typography>
     );
   }
 
   const {
-    _id,
     first_name: firstName,
     last_name: lastName,
     location,
-    description,
     occupation,
+    description
   } = user;
+
+  const _id = user._id;
 
   return (
     <div className="user-detail">
-      <Typography variant="h4" className="user-detail__name">
-        {firstName} {lastName}
-      </Typography>
-
       <div className="user-detail__info">
+        <Typography variant="h4" className="user-detail__name">
+          {firstName} {lastName}
+        </Typography>
+
         <div className="user-detail__row">
           <Typography variant="subtitle2" className="user-detail__label">
             Location:
@@ -141,17 +147,26 @@ export default function UserDetail({ changeMainContent }) {
         variant="contained"
         color="primary"
       >
-        
-        {/* Most Recent Photo thumbnail (User Story 1) */}
+        {}
         {mostRecentPhoto && mostRecentPhoto !== false && (
-          <div className="user-detail__most-recent">
+          <div
+            className="user-detail__most-recent"
+            onClick={(event) => {
+              event.stopPropagation();
+              window.location.hash = `#/photos/${_id}?photoId=${mostRecentPhoto._id}`;
+            }}
+          >
             <Typography variant="subtitle2" className="user-detail__label">
               Most Recent Photo:
             </Typography>
 
             <div
               className="user-detail__most-recent-content"
-              style={{ display: "flex", flexDirection: "column", marginTop: 8 }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                marginTop: 8
+              }}
             >
               <img
                 src={`images/${mostRecentPhoto.file_name}`}
@@ -159,7 +174,7 @@ export default function UserDetail({ changeMainContent }) {
                 style={{
                   width: 120,
                   height: 120,
-                  objectFit: "cover",
+                  objectFit: 'cover',
                   borderRadius: 4
                 }}
               />
@@ -172,7 +187,13 @@ export default function UserDetail({ changeMainContent }) {
         )}
 
         {mostCommentedPhoto && mostCommentedPhoto !== false && (
-          <div className="user-detail__most-commented">
+          <div
+            className="user-detail__most-commented"
+            onClick={(event) => {
+              event.stopPropagation();
+              window.location.hash = `#/photos/${_id}?photoId=${mostCommentedPhoto._id}`;
+            }}
+          >
             <Typography variant="subtitle2" className="user-detail__label">
               Most Commented Photo:
             </Typography>
@@ -183,12 +204,13 @@ export default function UserDetail({ changeMainContent }) {
                 className="user-detail__thumb"
               />
               <Typography variant="body2" className="user-detail__value">
-                {mostCommentedPhoto.commentCount} comment{mostCommentedPhoto.commentCount === 1 ? '' : 's'}
+                {mostCommentedPhoto.commentCount} comment
+                {mostCommentedPhoto.commentCount === 1 ? '' : 's'}
               </Typography>
             </div>
           </div>
         )}
-        
+
         View Photos
       </Button>
     </div>
